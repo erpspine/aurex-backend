@@ -1,0 +1,145 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\GymClass;
+use Illuminate\Database\Seeder;
+
+class GymClassSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $classes = [
+            [
+                'name' => 'Morning HIIT',
+                'class_type' => 'HIIT',
+                'workout_level' => 'Intermediate',
+                'status' => 'Active',
+                'capacity' => 25,
+                'booked_slots' => 18,
+                'location' => 'Main Training Hall',
+                'description' => 'High-intensity interval training for conditioning, fat loss and endurance.',
+                'trainer_name' => 'Coach Daniel',
+                'class_date' => now()->toDateString(),
+                'start_time' => '06:00',
+                'end_time' => '07:00',
+                'repeat_schedule' => 'Weekly',
+                'booking_required' => true,
+                'price_amount' => 15000,
+                'access_type' => 'Members Only',
+            ],
+            [
+                'name' => 'Strength Training',
+                'class_type' => 'Strength',
+                'workout_level' => 'All Levels',
+                'status' => 'Active',
+                'capacity' => 30,
+                'booked_slots' => 22,
+                'location' => 'Strength Zone',
+                'description' => 'Compound lifting session focused on progressive strength development.',
+                'trainer_name' => 'Coach Sarah',
+                'class_date' => now()->addDay()->toDateString(),
+                'start_time' => '17:30',
+                'end_time' => '18:30',
+                'repeat_schedule' => 'Weekly',
+                'booking_required' => true,
+                'price_amount' => 20000,
+                'access_type' => 'Premium',
+            ],
+            [
+                'name' => 'Beginner Fitness',
+                'class_type' => 'Beginner Fitness',
+                'workout_level' => 'Beginner',
+                'status' => 'Active',
+                'capacity' => 20,
+                'booked_slots' => 10,
+                'location' => 'Functional Area',
+                'description' => 'Foundational movement, basic strength and confidence-building session.',
+                'trainer_name' => 'Coach Michael',
+                'class_date' => now()->addDays(2)->toDateString(),
+                'start_time' => '19:00',
+                'end_time' => '20:00',
+                'repeat_schedule' => 'Weekly',
+                'booking_required' => true,
+                'price_amount' => 12000,
+                'access_type' => 'Members Only',
+            ],
+            [
+                'name' => 'Yoga Mobility',
+                'class_type' => 'Yoga',
+                'workout_level' => 'All Levels',
+                'status' => 'Active',
+                'capacity' => 18,
+                'booked_slots' => 14,
+                'location' => 'Studio Room',
+                'description' => 'Mobility, flexibility and recovery-focused yoga flow.',
+                'trainer_name' => 'Coach Amina',
+                'class_date' => now()->addDays(3)->toDateString(),
+                'start_time' => '07:30',
+                'end_time' => '08:30',
+                'repeat_schedule' => 'Weekly',
+                'booking_required' => true,
+                'price_amount' => 15000,
+                'access_type' => 'Free',
+            ],
+            [
+                'name' => 'Cardio Burn',
+                'class_type' => 'Cardio',
+                'workout_level' => 'Intermediate',
+                'status' => 'Active',
+                'capacity' => 28,
+                'booked_slots' => 21,
+                'location' => 'Cardio Deck',
+                'description' => 'Fast-paced cardio class using treadmill, rower and bodyweight intervals.',
+                'trainer_name' => 'Coach Daniel',
+                'class_date' => now()->addDays(4)->toDateString(),
+                'start_time' => '18:00',
+                'end_time' => '19:00',
+                'repeat_schedule' => 'Weekly',
+                'booking_required' => true,
+                'price_amount' => 18000,
+                'access_type' => 'Members Only',
+            ],
+            [
+                'name' => 'Bodybuilding Pump',
+                'class_type' => 'Bodybuilding',
+                'workout_level' => 'Advanced',
+                'status' => 'Draft',
+                'capacity' => 16,
+                'booked_slots' => 0,
+                'location' => 'Free Weight Area',
+                'description' => 'Hypertrophy-focused bodybuilding session for advanced members.',
+                'trainer_name' => 'Coach Sarah',
+                'class_date' => now()->addDays(5)->toDateString(),
+                'start_time' => '16:00',
+                'end_time' => '17:15',
+                'repeat_schedule' => 'Weekly',
+                'booking_required' => true,
+                'price_amount' => 25000,
+                'access_type' => 'Premium',
+            ],
+        ];
+
+        foreach ($classes as $class) {
+            GymClass::updateOrCreate(
+                [
+                    'name' => $class['name'],
+                    'trainer_name' => $class['trainer_name'],
+                    'class_date' => $class['class_date'],
+                    'start_time' => $class['start_time'],
+                ],
+                [
+                    'currency' => 'TZS',
+                    'booking_deadline' => '2 hours before class',
+                    'cancellation_deadline' => '1 hour before class',
+                    'late_entry_limit' => '10 minutes',
+                    'waitlist_limit' => 10,
+                    'notes' => 'Members should arrive early, carry water and wear proper training shoes.',
+                    'show_in_mobile_app' => true,
+                    'allow_booking_from_app' => true,
+                    ...$class,
+                ],
+            );
+        }
+    }
+}
