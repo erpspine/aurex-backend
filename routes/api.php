@@ -24,6 +24,7 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('api.token')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::get('/dashboard', [DashboardController::class, 'show']);

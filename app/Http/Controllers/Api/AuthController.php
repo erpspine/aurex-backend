@@ -8,6 +8,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -59,6 +61,51 @@ class AuthController extends Controller
         $user = $request->user()->load('member.membershipPlan:id,name');
 
         return response()->json([
+            'user' => $user,
+            'member' => $user->member,
+        ]);
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user()->load('member');
+        $member = $user->member;
+
+        if (! $member) {
+            throw ValidationException::withMessages([
+                'member' => ['No member profile is linked to this account.'],
+            ]);
+        }
+
+        $validated = $request->validate([
+            'full_name' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:50'],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'gender' => ['nullable', Rule::in(['Male', 'Female'])],
+            'date_of_birth' => ['nullable', 'date'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'height_cm' => ['nullable', 'integer', 'min:1', 'max:300'],
+            'weight_kg' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'fitness_goal' => ['nullable', Rule::in(['Weight Loss', 'Muscle Gain', 'Strength', 'General Fitness'])],
+            'workout_level' => ['nullable', Rule::in(['Beginner', 'Intermediate', 'Advanced'])],
+            'emergency_contact_name' => ['nullable', 'string', 'max:255'],
+            'emergency_contact_relationship' => ['nullable', 'string', 'max:100'],
+            'emergency_contact_phone' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        DB::transaction(function () use ($user, $member, $validated): void {
+            $member->update($validated);
+            $user->update([
+                'name' => $validated['full_name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'],
+            ]);
+        });
+
+        $user = $user->fresh()->load('member.membershipPlan:id,name');
+
+        return response()->json([
+            'message' => 'Profile updated successfully.',
             'user' => $user,
             'member' => $user->member,
         ]);
