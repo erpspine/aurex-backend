@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Str;
@@ -111,6 +112,31 @@ class AuthController extends Controller
         ]);
     }
 
+    public function updateProfilePhoto(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'profile_photo' => ['required', 'image', 'max:5120'],
+        ]);
+
+        $user = $request->user()->load('member.membershipPlan:id,name');
+
+        $this->deleteStoredFile($user->profile_photo_path);
+
+        $user->update([
+            'profile_photo_path' => Storage::disk('public')->url(
+                $validated['profile_photo']->store('profile-photos', 'public')
+            ),
+        ]);
+
+        $user = $user->fresh()->load('member.membershipPlan:id,name');
+
+        return response()->json([
+            'message' => 'Profile photo updated successfully.',
+            'user' => $user,
+            'member' => $user->member,
+        ]);
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $plainToken = $request->bearerToken();
@@ -124,6 +150,25 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Logged out successfully.',
         ]);
+    }
+
+    private function deleteStoredFile(?string $url): void
+    {
+        if (! $url || ! str_contains($url, '/storage/')) {
+            return;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($path)) {
+            return;
+        }
+
+        $storagePath = ltrim(str_replace('/storage/', '', $path), '/');
+
+        if ($storagePath !== '') {
+            Storage::disk('public')->delete($storagePath);
+        }
     }
 
     public function changePassword(Request $request): JsonResponse
