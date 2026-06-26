@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BodyPart;
 use App\Models\Exercise;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,14 +15,14 @@ class ExerciseController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'exercises' => Exercise::query()->latest()->get(),
+            'exercises' => Exercise::query()->with('bodyPart')->latest()->get(),
         ]);
     }
 
     public function show(Exercise $exercise): JsonResponse
     {
         return response()->json([
-            'exercise' => $exercise,
+            'exercise' => $exercise->load('bodyPart'),
         ]);
     }
 
@@ -65,7 +66,8 @@ class ExerciseController extends Controller
         return [
             'name' => ['required', 'string', 'max:255'],
             'category' => ['required', Rule::in(['Equipment Based', 'Body Part Exercise', 'Workout'])],
-            'body_part' => ['required', Rule::in(['Shoulders', 'Chest', 'Back', 'Arms', 'Legs', 'Abs', 'Full Body'])],
+            'body_part_id' => ['nullable', 'uuid', Rule::exists('body_parts', 'id')],
+            'body_part' => ['required_without:body_part_id', 'nullable', 'string', 'max:255'],
             'equipment' => ['required', Rule::in(['Machine', 'Dumbbell', 'Barbell', 'Kettlebell', 'Resistance Bands', 'No Equipment'])],
             'workout_level' => ['required', Rule::in(['Beginner', 'Intermediate', 'Advanced', 'Elite'])],
             'duration' => ['nullable', 'string', 'max:100'],
@@ -95,6 +97,11 @@ class ExerciseController extends Controller
 
         unset($data['image_file'], $data['video_file']);
 
+        if (! empty($data['body_part_id'])) {
+            $bodyPart = BodyPart::query()->find($data['body_part_id']);
+            $data['body_part'] = $bodyPart?->name ?? $data['body_part'];
+        }
+
         if ($request->hasFile('image_file')) {
             $this->deleteStoredFile($exercise?->image_url);
 
@@ -110,6 +117,8 @@ class ExerciseController extends Controller
                 $request->file('video_file')->store('exercises/videos', 'public')
             );
         }
+
+        $data['body_part'] = $data['body_part'] ?: 'Full Body';
 
         return $data;
     }

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AppBannerController;
 use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\BodyPartController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DietPlanController;
 use App\Http\Controllers\Api\EquipmentController;
@@ -55,6 +56,11 @@ Route::middleware('api.token')->group(function () {
     Route::get('/equipment/{equipment}', [EquipmentController::class, 'show']);
     Route::put('/equipment/{equipment}', [EquipmentController::class, 'update']);
     Route::delete('/equipment/{equipment}', [EquipmentController::class, 'destroy']);
+    Route::get('/body-parts', [BodyPartController::class, 'index']);
+    Route::post('/body-parts', [BodyPartController::class, 'store']);
+    Route::get('/body-parts/{bodyPart}', [BodyPartController::class, 'show']);
+    Route::put('/body-parts/{bodyPart}', [BodyPartController::class, 'update']);
+    Route::delete('/body-parts/{bodyPart}', [BodyPartController::class, 'destroy']);
     Route::get('/exercises', [ExerciseController::class, 'index']);
     Route::post('/exercises', [ExerciseController::class, 'store']);
     Route::get('/exercises/{exercise}', [ExerciseController::class, 'show']);

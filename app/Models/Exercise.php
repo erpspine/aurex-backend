@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'name',
     'category',
     'body_part',
+    'body_part_id',
     'equipment',
     'workout_level',
     'duration',
@@ -29,6 +31,11 @@ use Illuminate\Database\Eloquent\Model;
 class Exercise extends Model
 {
     use HasUuids;
+
+    public function bodyPart(): BelongsTo
+    {
+        return $this->belongsTo(BodyPart::class);
+    }
 
     protected function casts(): array
     {
