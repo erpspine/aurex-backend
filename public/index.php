@@ -5,21 +5,8 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
-$origin = $_SERVER['HTTP_ORIGIN'] ?? null;
-
-if ($origin !== null && preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/', $origin)) {
-    header("Access-Control-Allow-Origin: {$origin}");
-    header('Vary: Origin');
-}
-
-header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Accept, Authorization, X-Requested-With');
-header('Access-Control-Max-Age: 86400');
-
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+// CORS is handled by Laravel's built-in HandleCors middleware
+// Configuration is in config/cors.php
 
 // Determine if the application is in maintenance mode...
 if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {

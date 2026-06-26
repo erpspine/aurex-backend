@@ -38,6 +38,9 @@ class Cors
 
     private function isAllowedOrigin(string $origin): bool
     {
-        return (bool) preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/', $origin);
+        return (bool) preg_match(
+            '/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$|^https?:\/\/(app|api)\.aurex-performance\.com$/',
+            $origin
+        );
     }
 }

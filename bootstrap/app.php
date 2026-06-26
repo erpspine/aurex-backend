@@ -15,7 +15,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->append(Cors::class);
+        // Laravel's built-in HandleCors middleware is enabled by default
+        // and will use config/cors.php configuration
+        // No need to append custom Cors middleware
 
         $middleware->alias([
             'api.token' => AuthenticateApiToken::class,
