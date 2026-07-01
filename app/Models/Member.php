@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'user_id',
     'phone',
     'email',
+    'access_code',
     'gender',
     'date_of_birth',
     'address',

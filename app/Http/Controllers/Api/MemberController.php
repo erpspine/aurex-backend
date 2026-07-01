@@ -92,6 +92,24 @@ class MemberController extends Controller
         ]);
     }
 
+    public function updateCard(Request $request, Member $member): JsonResponse
+    {
+        $validated = $request->validate([
+            'access_code' => $this->accessCodeRules($member),
+        ]);
+
+        $member->update([
+            'access_code' => $validated['access_code'] ?? null,
+        ]);
+
+        return response()->json([
+            'message' => $member->access_code
+                ? 'Turnstile card linked successfully.'
+                : 'Turnstile card unlinked successfully.',
+            'member' => $member->fresh()->load(['membershipPlan:id,name', 'user:id,email,status']),
+        ]);
+    }
+
     public function destroy(Member $member): JsonResponse
     {
         DB::transaction(function () use ($member): void {
@@ -131,7 +149,7 @@ class MemberController extends Controller
             : Rule::unique('users', 'email');
 
         return [
-            ...$this->baseRules(),
+            ...$this->baseRules($member),
             'email' => $emailRules,
         ];
     }
@@ -139,11 +157,12 @@ class MemberController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function baseRules(): array
+    private function baseRules(?Member $member = null): array
     {
         return [
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
+            'access_code' => $this->accessCodeRules($member),
             'gender' => ['nullable', Rule::in(['Male', 'Female'])],
             'date_of_birth' => ['nullable', 'date'],
             'address' => ['nullable', 'string', 'max:255'],
@@ -167,5 +186,25 @@ class MemberController extends Controller
     private function userStatusFor(string $membershipStatus): string
     {
         return $membershipStatus === 'Active' ? 'Active' : 'Inactive';
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function accessCodeRules(?Member $member = null): array
+    {
+        return [
+            'nullable',
+            'string',
+            'regex:/^[1-9]\d{0,9}$/',
+            function (string $attribute, mixed $value, \Closure $fail): void {
+                if ($value !== null && (int) $value > 4294967295) {
+                    $fail('The turnstile card number must fit an unsigned 32-bit number.');
+                }
+            },
+            $member
+                ? Rule::unique('members', 'access_code')->ignore($member->id)
+                : Rule::unique('members', 'access_code'),
+        ];
     }
 }
