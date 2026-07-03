@@ -15,7 +15,9 @@ use App\Http\Controllers\Api\MobileAppController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\TrainerController;
+use App\Http\Controllers\Api\TurnstileController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WorkoutController;
 use App\Http\Controllers\Api\WorkoutLevelController;
@@ -24,6 +26,11 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('api.token')->group(function () {
+    Route::get('/sync/members', [SyncController::class, 'members']);
+    Route::post('/sync/attendance', [SyncController::class, 'attendance']);
+    Route::get('/sync/commands', [TurnstileController::class, 'pending']);
+    Route::post('/sync/commands/{turnstileCommand}/ack', [TurnstileController::class, 'acknowledge']);
+    Route::post('/turnstile/commands', [TurnstileController::class, 'store']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/profile/photo', [AuthController::class, 'updateProfilePhoto']);
@@ -41,6 +48,7 @@ Route::middleware('api.token')->group(function () {
     Route::post('/members', [MemberController::class, 'store']);
     Route::get('/members/{member}', [MemberController::class, 'show']);
     Route::put('/members/{member}', [MemberController::class, 'update']);
+    Route::put('/members/{member}/card', [MemberController::class, 'updateCard']);
     Route::delete('/members/{member}', [MemberController::class, 'destroy']);
     Route::get('/payments', [PaymentController::class, 'index']);
     Route::post('/payments', [PaymentController::class, 'store']);

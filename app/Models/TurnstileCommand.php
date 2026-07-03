@@ -8,20 +8,17 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'member_id',
-    'source_event_id',
     'agent_id',
-    'member_name',
-    'member_phone',
-    'plan_name',
-    'check_in_at',
-    'check_out_at',
-    'entry_method',
-    'gym_zone',
-    'staff_notes',
+    'type',
+    'member_id',
+    'requested_by',
+    'reason',
     'status',
+    'result_message',
+    'expires_at',
+    'completed_at',
 ])]
-class Attendance extends Model
+class TurnstileCommand extends Model
 {
     use HasUuids;
 
@@ -33,8 +30,8 @@ class Attendance extends Model
     protected function casts(): array
     {
         return [
-            'check_in_at' => 'datetime',
-            'check_out_at' => 'datetime',
+            'expires_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 }
