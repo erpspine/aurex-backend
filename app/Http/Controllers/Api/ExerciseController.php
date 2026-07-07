@@ -14,15 +14,24 @@ class ExerciseController extends Controller
 {
     public function index(): JsonResponse
     {
+        $exercises = Exercise::query()
+            ->with('bodyPart')
+            ->latest()
+            ->get()
+            ->map(fn (Exercise $exercise): array => $this->serializeExercise($exercise))
+            ->values();
+
         return response()->json([
-            'exercises' => Exercise::query()->with('bodyPart')->latest()->get(),
+            'exercises' => $exercises,
         ]);
     }
 
     public function show(Exercise $exercise): JsonResponse
     {
+        $exercise->load('bodyPart');
+
         return response()->json([
-            'exercise' => $exercise->load('bodyPart'),
+            'exercise' => $this->serializeExercise($exercise),
         ]);
     }
 
@@ -140,5 +149,19 @@ class ExerciseController extends Controller
         if ($storagePath !== '') {
             Storage::disk('public')->delete($storagePath);
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeExercise(Exercise $exercise): array
+    {
+        $payload = $exercise->attributesToArray();
+
+        $payload['body_part_details'] = $exercise->relationLoaded('bodyPart') && $exercise->bodyPart
+            ? $exercise->bodyPart->attributesToArray()
+            : null;
+
+        return $payload;
     }
 }

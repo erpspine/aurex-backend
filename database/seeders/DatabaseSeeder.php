@@ -19,9 +19,11 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call([
+            BodyPartSeeder::class,
             MembershipPlanSeeder::class,
             EquipmentSeeder::class,
             ExerciseSeeder::class,
+            ExerciseBodyPartMappingSeeder::class,
             WorkoutLevelSeeder::class,
             WorkoutSeeder::class,
             GymClassSeeder::class,
