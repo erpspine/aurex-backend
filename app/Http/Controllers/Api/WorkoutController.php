@@ -68,6 +68,18 @@ class WorkoutController extends Controller
             'duration' => ['nullable', 'string', 'max:100'],
             'calories_burn' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
+            'days_count' => ['required', 'integer', 'min:1', 'max:31'],
+            'workout_days' => ['nullable', 'array'],
+            'workout_days.*.day_number' => ['required_with:workout_days', 'integer', 'min:1', 'max:31'],
+            'workout_days.*.title' => ['nullable', 'string', 'max:255'],
+            'workout_days.*.notes' => ['nullable', 'string'],
+            'workout_days.*.exercises' => ['nullable', 'array'],
+            'workout_days.*.exercises.*.exercise_id' => ['nullable', 'string', 'max:255'],
+            'workout_days.*.exercises.*.name' => ['required_with:workout_days.*.exercises', 'string', 'max:255'],
+            'workout_days.*.exercises.*.body_part' => ['nullable', 'string', 'max:100'],
+            'workout_days.*.exercises.*.sets' => ['nullable', 'string', 'max:100'],
+            'workout_days.*.exercises.*.reps' => ['nullable', 'string', 'max:100'],
+            'workout_days.*.exercises.*.rest' => ['nullable', 'string', 'max:100'],
             'exercises' => ['nullable', 'array'],
             'exercises.*.exercise_id' => ['nullable', 'string', 'max:255'],
             'exercises.*.name' => ['required_with:exercises', 'string', 'max:255'],
@@ -93,6 +105,13 @@ class WorkoutController extends Controller
         $data = $request->validate($this->rules());
         unset($data['cover_image_file']);
 
+        $data['days_count'] = (int) ($data['days_count'] ?? 1);
+        $data['workout_days'] = $this->normalizeWorkoutDays(
+            $data['workout_days'] ?? [],
+            $data['days_count']
+        );
+        $data['exercises'] = $this->flattenWorkoutExercises($data['workout_days']);
+
         if ($request->hasFile('cover_image_file')) {
             $this->deleteStoredFile($workout?->cover_image_url);
 
@@ -102,6 +121,61 @@ class WorkoutController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * @param array<int, mixed> $days
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeWorkoutDays(array $days, int $daysCount): array
+    {
+        $normalized = [];
+
+        for ($dayNumber = 1; $dayNumber <= $daysCount; $dayNumber++) {
+            $source = collect($days)->first(
+                fn ($day) => is_array($day) && (int) ($day['day_number'] ?? 0) === $dayNumber
+            );
+
+            $exercises = is_array($source) && is_array($source['exercises'] ?? null)
+                ? $source['exercises']
+                : [];
+
+            $normalized[] = [
+                'day_number' => $dayNumber,
+                'title' => is_array($source) && filled($source['title'] ?? null)
+                    ? (string) $source['title']
+                    : "Day {$dayNumber}",
+                'notes' => is_array($source) ? (string) ($source['notes'] ?? '') : '',
+                'exercises' => array_values($exercises),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $days
+     * @return array<int, array<string, mixed>>
+     */
+    private function flattenWorkoutExercises(array $days): array
+    {
+        $exercises = [];
+
+        foreach ($days as $day) {
+            foreach (($day['exercises'] ?? []) as $exercise) {
+                if (! is_array($exercise)) {
+                    continue;
+                }
+
+                $exercises[] = [
+                    ...$exercise,
+                    'day_number' => $day['day_number'] ?? null,
+                    'day_title' => $day['title'] ?? null,
+                ];
+            }
+        }
+
+        return $exercises;
     }
 
     private function deleteStoredFile(?string $url): void

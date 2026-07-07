@@ -31,6 +31,8 @@ Route::middleware('api.token')->group(function () {
     Route::get('/sync/commands', [TurnstileController::class, 'pending']);
     Route::post('/sync/commands/{turnstileCommand}/ack', [TurnstileController::class, 'acknowledge']);
     Route::post('/turnstile/commands', [TurnstileController::class, 'store']);
+    Route::get('/turnstile/latest-card', [TurnstileController::class, 'latestCard']);
+    Route::post('/turnstile/cards/push', [TurnstileController::class, 'pushCard']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::post('/profile/photo', [AuthController::class, 'updateProfilePhoto']);

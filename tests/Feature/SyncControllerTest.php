@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ApiToken;
 use App\Models\Member;
+use App\Models\TurnstileEvent;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -138,6 +139,73 @@ class SyncControllerTest extends TestCase
         ], $headers)
             ->assertOk()
             ->assertJsonPath('member.access_code', null);
+    }
+
+    public function test_latest_turnstile_card_endpoint_returns_most_recent_scan(): void
+    {
+        [$headers] = $this->agentHeaders();
+        $member = $this->member();
+
+        TurnstileEvent::create([
+            'source_event_id' => (string) Str::uuid(),
+            'agent_id' => 'test-agent',
+            'member_id' => $member->id,
+            'card_number' => '100111',
+            'event_time' => now()->subMinute(),
+            'direction' => 'In',
+        ]);
+
+        TurnstileEvent::create([
+            'source_event_id' => (string) Str::uuid(),
+            'agent_id' => 'test-agent',
+            'member_id' => $member->id,
+            'card_number' => '100222',
+            'event_time' => now(),
+            'direction' => 'In',
+        ]);
+
+        $this->getJson('/api/turnstile/latest-card', $headers)
+            ->assertOk()
+            ->assertJsonPath('card_number', '100222')
+            ->assertJsonPath('agent_id', 'test-agent');
+    }
+
+    public function test_push_card_command_can_be_queued_and_collected(): void
+    {
+        [$headers] = $this->agentHeaders();
+        $agentHeaders = [...$headers, 'X-Aurex-Agent' => 'test-agent'];
+
+        $this->postJson('/api/turnstile/cards/push', [
+            'agent_id' => 'test-agent',
+            'card_number' => '100245',
+            'member_name' => 'Front Desk Test',
+            'expiry_date' => now()->addMonth()->toDateString(),
+        ], $headers)
+            ->assertCreated();
+
+        $this->getJson('/api/sync/commands', $agentHeaders)
+            ->assertOk()
+            ->assertJsonPath('commands.0.type', 'add_card')
+            ->assertJsonPath('commands.0.card_number', '100245')
+            ->assertJsonPath('commands.0.member_name', 'Front Desk Test');
+    }
+
+    public function test_push_card_uses_configured_default_agent_when_not_provided(): void
+    {
+        [$headers] = $this->agentHeaders();
+        config()->set('services.turnstile.default_agent_id', 'configured-agent');
+
+        $this->postJson('/api/turnstile/cards/push', [
+            'card_number' => '100333',
+            'member_name' => 'Default Agent Test',
+        ], $headers)
+            ->assertCreated()
+            ->assertJsonPath('command.agent_id', 'configured-agent');
+
+        $this->assertDatabaseHas('turnstile_commands', [
+            'type' => 'add_card',
+            'agent_id' => 'configured-agent',
+        ]);
     }
 
     /**

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\MemberCredentialsMail;
 use App\Models\Member;
+use App\Models\TurnstileCommand;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -18,11 +20,13 @@ class MemberController extends Controller
 {
     public function index(): JsonResponse
     {
+        $members = Member::query()
+            ->with(['membershipPlan:id,name', 'user:id,email,status'])
+            ->latest()
+            ->get();
+
         return response()->json([
-            'members' => Member::query()
-                ->with(['membershipPlan:id,name', 'user:id,email,status'])
-                ->latest()
-                ->get(),
+            'members' => $this->enrichMembersWithControllerPushStatus($members),
         ]);
     }
 
@@ -58,14 +62,18 @@ class MemberController extends Controller
 
         return response()->json([
             'message' => 'Member created successfully and mobile app credentials email sent.',
-            'member' => $member->load(['membershipPlan:id,name', 'user:id,email,status']),
+            'member' => $this->enrichMember(
+                $member->load(['membershipPlan:id,name', 'user:id,email,status']),
+            ),
         ], 201);
     }
 
     public function show(Member $member): JsonResponse
     {
         return response()->json([
-            'member' => $member->load(['membershipPlan:id,name', 'user:id,email,status']),
+            'member' => $this->enrichMember(
+                $member->load(['membershipPlan:id,name', 'user:id,email,status']),
+            ),
         ]);
     }
 
@@ -88,7 +96,9 @@ class MemberController extends Controller
 
         return response()->json([
             'message' => 'Member updated successfully.',
-            'member' => $member->fresh()->load(['membershipPlan:id,name', 'user:id,email,status']),
+            'member' => $this->enrichMember(
+                $member->fresh()->load(['membershipPlan:id,name', 'user:id,email,status']),
+            ),
         ]);
     }
 
@@ -106,7 +116,9 @@ class MemberController extends Controller
             'message' => $member->access_code
                 ? 'Turnstile card linked successfully.'
                 : 'Turnstile card unlinked successfully.',
-            'member' => $member->fresh()->load(['membershipPlan:id,name', 'user:id,email,status']),
+            'member' => $this->enrichMember(
+                $member->fresh()->load(['membershipPlan:id,name', 'user:id,email,status']),
+            ),
         ]);
     }
 
@@ -206,5 +218,112 @@ class MemberController extends Controller
                 ? Rule::unique('members', 'access_code')->ignore($member->id)
                 : Rule::unique('members', 'access_code'),
         ];
+    }
+
+    /**
+     * @param Collection<int, Member> $members
+     * @return array<int, array<string, mixed>>
+     */
+    private function enrichMembersWithControllerPushStatus(Collection $members): array
+    {
+        $cards = $members
+            ->pluck('access_code')
+            ->filter(fn(mixed $code): bool => is_string($code) && trim($code) !== '')
+            ->map(fn(string $code): string => trim($code))
+            ->unique()
+            ->values();
+
+        $latestByCard = [];
+
+        if ($cards->isNotEmpty()) {
+            $commands = TurnstileCommand::query()
+                ->select(['id', 'status', 'result_message', 'created_at', 'completed_at', 'reason'])
+                ->where('type', 'add_card')
+                ->latest('created_at')
+                ->limit(5000)
+                ->get();
+
+            foreach ($commands as $command) {
+                $cardNumber = $this->extractCardNumberFromReason($command->reason);
+
+                if (!$cardNumber || !in_array($cardNumber, $cards->all(), true)) {
+                    continue;
+                }
+
+                if (isset($latestByCard[$cardNumber])) {
+                    continue;
+                }
+
+                $latestByCard[$cardNumber] = $command;
+
+                if (count($latestByCard) === $cards->count()) {
+                    break;
+                }
+            }
+        }
+
+        return $members
+            ->map(fn(Member $member): array => $this->enrichMember(
+                $member,
+                $member->access_code ? ($latestByCard[trim($member->access_code)] ?? null) : null,
+            ))
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function enrichMember(Member $member, ?TurnstileCommand $command = null): array
+    {
+        $cardNumber = is_string($member->access_code) ? trim($member->access_code) : '';
+
+        if ($cardNumber === '') {
+            return [
+                ...$member->toArray(),
+                'controller_push_status' => 'Not Linked',
+                'controller_push_message' => null,
+                'controller_push_updated_at' => null,
+            ];
+        }
+
+        if (!$command) {
+            $command = TurnstileCommand::query()
+                ->select(['id', 'status', 'result_message', 'created_at', 'completed_at', 'reason'])
+                ->where('type', 'add_card')
+                ->where('reason', 'like', '%"card_number":"' . $cardNumber . '"%')
+                ->latest('created_at')
+                ->first();
+        }
+
+        $status = match ($command?->status) {
+            'Completed' => 'Pushed',
+            'Pending' => 'Pending',
+            'Failed', 'Expired' => 'Failed',
+            default => 'Not Pushed',
+        };
+
+        return [
+            ...$member->toArray(),
+            'controller_push_status' => $status,
+            'controller_push_message' => $command?->result_message,
+            'controller_push_updated_at' => $command?->completed_at?->toISOString() ?? $command?->created_at?->toISOString(),
+        ];
+    }
+
+    private function extractCardNumberFromReason(?string $reason): ?string
+    {
+        if (!$reason) {
+            return null;
+        }
+
+        $decoded = json_decode($reason, true);
+
+        if (!is_array($decoded) || !isset($decoded['card_number'])) {
+            return null;
+        }
+
+        $cardNumber = trim((string) $decoded['card_number']);
+
+        return $cardNumber !== '' ? $cardNumber : null;
     }
 }

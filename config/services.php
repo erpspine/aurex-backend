@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'turnstile' => [
+        'default_agent_id' => env('TURNSTILE_AGENT_ID'),
+    ],
+
 ];

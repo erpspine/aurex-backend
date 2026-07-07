@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Model;
     'duration',
     'calories_burn',
     'description',
+    'days_count',
+    'workout_days',
     'exercises',
     'warm_up',
     'trainer_notes',
@@ -30,6 +32,8 @@ class Workout extends Model
     protected function casts(): array
     {
         return [
+            'days_count' => 'integer',
+            'workout_days' => 'array',
             'exercises' => 'array',
             'show_in_mobile_app' => 'boolean',
         ];
