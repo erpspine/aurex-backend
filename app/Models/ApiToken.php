@@ -10,9 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'user_id',
     'name',
+    'token_type',
     'token_hash',
+    'scopes',
     'last_used_at',
     'expires_at',
+    'revoked_at',
 ])]
 class ApiToken extends Model
 {
@@ -26,8 +29,10 @@ class ApiToken extends Model
     protected function casts(): array
     {
         return [
+            'scopes' => 'array',
             'last_used_at' => 'datetime',
             'expires_at' => 'datetime',
+            'revoked_at' => 'datetime',
         ];
     }
 }

@@ -46,6 +46,7 @@ class AuthController extends Controller
         ApiToken::create([
             'user_id' => $user->id,
             'name' => 'dashboard',
+            'token_type' => 'dashboard',
             'token_hash' => hash('sha256', $plainToken),
         ]);
 

@@ -41,6 +41,22 @@ php artisan boost:install
 
 Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
 
+## Service Tokens
+
+Use `POST /api/api-tokens` with an authenticated admin dashboard token to mint a long-lived service token for the synchronizing agent.
+
+Example payload:
+
+```json
+{
+	"name": "Sync Agent",
+	"token_type": "service",
+	"scopes": ["sync"]
+}
+```
+
+The response returns the plain token once. Store it in the agent config as `Cloud.Token` and send it as `Authorization: Bearer <token>` on each sync request.
+
 ## Contributing
 
 Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
