@@ -7,6 +7,8 @@ use App\Mail\MembershipPaymentMail;
 use App\Models\Member;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
+use App\Services\MembershipExpiryService;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -32,7 +34,7 @@ class PaymentController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, MembershipExpiryService $expiryService): JsonResponse
     {
         $validated = $request->validate([
             'payer_type' => ['required', Rule::in(['Member', 'Walk-in'])],
@@ -70,59 +72,51 @@ class PaymentController extends Controller
 
         $payment = Payment::create($validated);
 
-        // Handle membership payment email and expiry date update
         if (
             $validated['payment_status'] === 'Paid' &&
             $validated['member_id'] &&
-            in_array($validated['payment_for'], ['Membership Renewal', 'New Membership'])
+            in_array($validated['payment_for'], ['Membership Renewal', 'New Membership', 'Daily Pass'])
         ) {
             $member = Member::with('membershipPlan')->find($validated['member_id']);
+            $plan = isset($validated['membership_plan_id'])
+                ? MembershipPlan::find($validated['membership_plan_id'])
+                : $member?->membershipPlan;
 
-            if ($member && $member->email) {
-                // Calculate new expiry date
-                $startDate = now();
-                if ($validated['payment_for'] === 'Membership Renewal' && $member->expiry_date) {
-                    // If renewing, extend from current expiry date if it's in the future
-                    $currentExpiry = \Carbon\Carbon::parse($member->expiry_date);
-                    if ($currentExpiry->isFuture()) {
-                        $startDate = $currentExpiry;
-                    }
-                }
+            if ($member && $plan) {
+                $newExpiryDate = $expiryService->extendMemberFromPayment(
+                    member: $member,
+                    plan: $plan,
+                    paymentDate: Carbon::parse($validated['payment_date']),
+                    isNewMembership: $validated['payment_for'] === 'New Membership',
+                );
 
-                // Get duration from membership plan
-                $durationDays = 30; // Default
-                if ($member->membershipPlan && $member->membershipPlan->duration_days) {
-                    $durationDays = $member->membershipPlan->duration_days;
-                } elseif ($validated['membership_plan_id']) {
-                    $plan = MembershipPlan::find($validated['membership_plan_id']);
-                    if ($plan && $plan->duration_days) {
-                        $durationDays = $plan->duration_days;
-                    }
-                }
-
-                $newExpiryDate = $startDate->copy()->addDays($durationDays);
-
-                // Update member's expiry date and status
                 $member->update([
-                    'expiry_date' => $newExpiryDate,
+                    'membership_plan_id' => $plan->id,
+                    'expiry_date' => $newExpiryDate->toDateString(),
                     'membership_status' => 'Active',
-                    'start_date' => $validated['payment_for'] === 'New Membership' ? now() : $member->start_date,
+                    'payment_status' => 'Paid',
+                    'payment_method' => $validated['payment_method'],
+                    'amount_paid' => (int) $member->amount_paid + (int) $validated['amount'],
+                    'start_date' => $validated['payment_for'] === 'New Membership'
+                        ? Carbon::parse($validated['payment_date'])->toDateString()
+                        : ($member->start_date?->toDateString() ?? Carbon::parse($validated['payment_date'])->toDateString()),
                 ]);
 
-                // Send email notification
-                try {
-                    Mail::to($member->email)->send(new MembershipPaymentMail(
-                        member: $member,
-                        payment: $payment,
-                        renewalDate: $newExpiryDate->format('F j, Y'),
-                        appUrl: (string) config('app.mobile_app_url', config('app.frontend_url')),
-                    ));
-                } catch (\Exception $e) {
-                    \Log::error('Failed to send membership payment email', [
-                        'member_id' => $member->id,
-                        'payment_id' => $payment->id,
-                        'error' => $e->getMessage(),
-                    ]);
+                if ($member->email) {
+                    try {
+                        Mail::to($member->email)->send(new MembershipPaymentMail(
+                            member: $member->fresh(),
+                            payment: $payment,
+                            renewalDate: $newExpiryDate->format('F j, Y'),
+                            appUrl: (string) config('app.mobile_app_url', config('app.frontend_url')),
+                        ));
+                    } catch (\Exception $e) {
+                        \Log::error('Failed to send membership payment email', [
+                            'member_id' => $member->id,
+                            'payment_id' => $payment->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                 }
             }
         }
