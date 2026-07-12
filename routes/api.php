@@ -28,6 +28,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('api.token')->group(function () {
     Route::get('/sync/members', [SyncController::class, 'members']);
     Route::post('/sync/attendance', [SyncController::class, 'attendance']);
+    Route::post('/sync/cards/status', [SyncController::class, 'cardStatus']);
     Route::get('/sync/commands', [TurnstileController::class, 'pending']);
     Route::post('/sync/commands/{turnstileCommand}/ack', [TurnstileController::class, 'acknowledge']);
     Route::post('/turnstile/commands', [TurnstileController::class, 'store']);

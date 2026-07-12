@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Member;
+use App\Models\TurnstileCommand;
 use App\Models\TurnstileEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -126,6 +127,60 @@ class SyncController extends Controller
                 : 'Member checked in from controller event.',
             'event' => $event,
             'attendance' => $attendance,
+        ], 201);
+    }
+
+    public function cardStatus(Request $request): JsonResponse
+    {
+        $agentId = trim((string) $request->header('X-Aurex-Agent'));
+
+        $data = $request->validate([
+            'agent_id' => ['nullable', 'string', 'max:100'],
+            'card_number' => ['required', 'string', 'max:20'],
+            'member_id' => ['nullable', 'uuid', 'exists:members,id'],
+            'member_name' => ['nullable', 'string', 'max:255'],
+            'expiry_date' => ['nullable', 'date'],
+            'status' => ['required', Rule::in(['Completed', 'Failed'])],
+            'message' => ['nullable', 'string', 'max:1000'],
+            'command_type' => ['nullable', Rule::in(['ADD_CARD', 'UPDATE_CARD', 'DELETE_CARD'])],
+        ]);
+
+        $agentId = $agentId !== '' ? $agentId : trim((string) ($data['agent_id'] ?? ''));
+        abort_if($agentId === '', 422, 'X-Aurex-Agent header or agent_id is required.');
+
+        $member = isset($data['member_id'])
+            ? Member::query()->find($data['member_id'])
+            : Member::query()
+                ->where('access_code', trim((string) $data['card_number']))
+                ->first();
+
+        $type = ($data['command_type'] ?? 'ADD_CARD') === 'DELETE_CARD'
+            ? 'delete_card'
+            : 'add_card';
+
+        $command = TurnstileCommand::create([
+            'agent_id' => $agentId,
+            'type' => $type,
+            'member_id' => $member?->id,
+            'requested_by' => null,
+            'reason' => json_encode([
+                'card_number' => trim((string) $data['card_number']),
+                'member_name' => $data['member_name'] ?? $member?->full_name,
+                'expiry_date' => isset($data['expiry_date'])
+                    ? Carbon::parse($data['expiry_date'])->toDateString()
+                    : null,
+                'source' => 'agent_auto_sync',
+                'command_type' => $data['command_type'] ?? null,
+            ]),
+            'status' => $data['status'],
+            'result_message' => $data['message'] ?? null,
+            'expires_at' => now(),
+            'completed_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Card synchronization status recorded.',
+            'command' => $command,
         ], 201);
     }
 }
