@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BodyPartController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DietPlanController;
 use App\Http\Controllers\Api\EquipmentController;
+use App\Http\Controllers\Api\ApiTokenController;
 use App\Http\Controllers\Api\ExerciseController;
 use App\Http\Controllers\Api\GymClassController;
 use App\Http\Controllers\Api\MemberController;
@@ -26,6 +27,9 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('api.token')->group(function () {
+    Route::get('/api-tokens', [ApiTokenController::class, 'index']);
+    Route::post('/api-tokens', [ApiTokenController::class, 'store']);
+    Route::delete('/api-tokens/{apiToken}', [ApiTokenController::class, 'destroy']);
     Route::get('/sync/members', [SyncController::class, 'members']);
     Route::post('/sync/attendance', [SyncController::class, 'attendance']);
     Route::post('/sync/cards/status', [SyncController::class, 'cardStatus']);
