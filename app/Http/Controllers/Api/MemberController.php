@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Carbon;
 
 class MemberController extends Controller
 {
@@ -181,7 +182,21 @@ class MemberController extends Controller
             'membership_plan_id' => ['nullable', 'uuid', 'exists:membership_plans,id'],
             'membership_status' => ['required', Rule::in(['Active', 'Pending', 'Expired', 'Suspended'])],
             'start_date' => ['nullable', 'date'],
-            'expiry_date' => ['nullable', 'date'],
+            'expiry_date' => [
+                'nullable',
+                'date',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $startDate = request()->input('start_date');
+
+                    if (! $startDate || ! $value) {
+                        return;
+                    }
+
+                    if (Carbon::parse($startDate)->startOfDay()->gt(Carbon::parse($value)->startOfDay())) {
+                        $fail('The start date should not be greater than the expiry date.');
+                    }
+                },
+            ],
             'amount_paid' => ['required', 'integer', 'min:0'],
             'payment_method' => ['nullable', Rule::in(['Cash', 'M-Pesa', 'Airtel Money', 'Bank Transfer', 'Card'])],
             'payment_status' => ['required', Rule::in(['Paid', 'Pending', 'Failed'])],

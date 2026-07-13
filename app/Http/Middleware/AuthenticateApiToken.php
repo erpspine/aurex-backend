@@ -40,6 +40,10 @@ class AuthenticateApiToken
             return response()->json(['message' => 'Token not allowed for this endpoint.'], 403);
         }
 
+        if ($this->isMemberUser($token->user) && ! $this->allowsMemberRoute($request)) {
+            return response()->json(['message' => 'Members are not allowed for this endpoint.'], 403);
+        }
+
         $token->forceFill(['last_used_at' => now()])->save();
         $request->attributes->set('api_token', $token);
         $request->setUserResolver(fn () => $token->user);
@@ -69,6 +73,37 @@ class AuthenticateApiToken
 
         if (str_starts_with($path, 'api/turnstile/')) {
             return in_array('turnstile', $scopes, true);
+        }
+
+        return false;
+    }
+
+    private function isMemberUser(object $user): bool
+    {
+        return strtolower(trim((string) ($user->role ?? ''))) === 'member'
+            || strtolower(trim((string) ($user->user_type ?? ''))) === 'member';
+    }
+
+    private function allowsMemberRoute(Request $request): bool
+    {
+        $path = trim($request->path(), '/');
+        $method = strtoupper($request->method());
+
+        $allowedExact = [
+            'api/me',
+            'api/profile',
+            'api/profile/photo',
+            'api/logout',
+            'api/change-password',
+            'api/workouts',
+        ];
+
+        if (in_array($path, $allowedExact, true)) {
+            return true;
+        }
+
+        if ($method === 'GET' && preg_match('#^api/workouts/[^/]+$#', $path)) {
+            return true;
         }
 
         return false;

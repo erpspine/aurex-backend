@@ -13,13 +13,41 @@ class WorkoutController extends Controller
 {
     public function index(): JsonResponse
     {
+        $query = Workout::query()->latest();
+        $user = request()->user();
+
+        if ($this->isMemberUser($user)) {
+            $member = $user?->member;
+
+            $query
+                ->where('publish_status', 'Published')
+                ->where('show_in_mobile_app', true)
+                ->when($member?->fitness_goal, fn ($workouts, string $goal) => $workouts->where('goal', $goal))
+                ->when($member?->workout_level, fn ($workouts, string $level) => $workouts->where('workout_level', $level));
+        }
+
         return response()->json([
-            'workouts' => Workout::query()->latest()->get(),
+            'workouts' => $query->get(),
         ]);
     }
 
     public function show(Workout $workout): JsonResponse
     {
+        $user = request()->user();
+
+        if ($this->isMemberUser($user)) {
+            $member = $user?->member;
+
+            abort_if(
+                $workout->publish_status !== 'Published'
+                    || ! $workout->show_in_mobile_app
+                    || ($member?->fitness_goal && $workout->goal !== $member->fitness_goal)
+                    || ($member?->workout_level && $workout->workout_level !== $member->workout_level),
+                403,
+                'This workout is not assigned to your profile.'
+            );
+        }
+
         return response()->json([
             'workout' => $workout,
         ]);
@@ -195,5 +223,14 @@ class WorkoutController extends Controller
         if ($storagePath !== '') {
             Storage::disk('public')->delete($storagePath);
         }
+    }
+
+    private function isMemberUser(mixed $user): bool
+    {
+        return $user
+            && (
+                strtolower(trim((string) ($user->role ?? ''))) === 'member'
+                || strtolower(trim((string) ($user->user_type ?? ''))) === 'member'
+            );
     }
 }

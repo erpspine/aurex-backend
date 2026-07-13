@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApiToken;
+use App\Models\Member;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -25,7 +27,7 @@ class AuthController extends Controller
         ]);
 
         $user = User::query()
-            ->with('member.membershipPlan:id,name')
+            ->with('member.membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days')
             ->where('email', $validated['email'])
             ->first();
 
@@ -54,17 +56,17 @@ class AuthController extends Controller
             'message' => 'Login successful.',
             'token' => $plainToken,
             'user' => $user,
-            'member' => $user->member,
+            'member' => $this->memberProfilePayload($user->member),
         ]);
     }
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user()->load('member.membershipPlan:id,name');
+        $user = $request->user()->load('member.membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days');
 
         return response()->json([
             'user' => $user,
-            'member' => $user->member,
+            'member' => $this->memberProfilePayload($user->member),
         ]);
     }
 
@@ -104,12 +106,12 @@ class AuthController extends Controller
             ]);
         });
 
-        $user = $user->fresh()->load('member.membershipPlan:id,name');
+        $user = $user->fresh()->load('member.membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days');
 
         return response()->json([
             'message' => 'Profile updated successfully.',
             'user' => $user,
-            'member' => $user->member,
+            'member' => $this->memberProfilePayload($user->member),
         ]);
     }
 
@@ -119,7 +121,7 @@ class AuthController extends Controller
             'profile_photo' => ['required', 'image', 'max:5120'],
         ]);
 
-        $user = $request->user()->load('member.membershipPlan:id,name');
+        $user = $request->user()->load('member.membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days');
 
         $this->deleteStoredFile($user->profile_photo_path);
 
@@ -129,12 +131,12 @@ class AuthController extends Controller
             ),
         ]);
 
-        $user = $user->fresh()->load('member.membershipPlan:id,name');
+        $user = $user->fresh()->load('member.membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days');
 
         return response()->json([
             'message' => 'Profile photo updated successfully.',
             'user' => $user,
-            'member' => $user->member,
+            'member' => $this->memberProfilePayload($user->member),
         ]);
     }
 
@@ -170,6 +172,53 @@ class AuthController extends Controller
         if ($storagePath !== '') {
             Storage::disk('public')->delete($storagePath);
         }
+    }
+
+    private function memberProfilePayload(?Member $member): ?array
+    {
+        if (! $member) {
+            return null;
+        }
+
+        $member->loadMissing('membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days');
+
+        $payments = $member->payments()
+            ->with('membershipPlan:id,name,price_amount,currency')
+            ->latest('payment_date')
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(fn ($payment): array => [
+                'id' => $payment->id,
+                'payment_for' => $payment->payment_for,
+                'item_name' => $payment->item_name,
+                'membership_plan' => $payment->membershipPlan,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
+                'payment_method' => $payment->payment_method,
+                'reference_number' => $payment->reference_number,
+                'payment_date' => $payment->payment_date?->toDateString(),
+                'payment_status' => $payment->payment_status,
+            ])
+            ->values();
+
+        $expiryDate = $member->expiry_date ? Carbon::parse($member->expiry_date)->startOfDay() : null;
+        $daysRemaining = $expiryDate
+            ? now()->startOfDay()->diffInDays($expiryDate, false)
+            : null;
+
+        return [
+            ...$member->toArray(),
+            'membership_plan' => $member->membershipPlan,
+            'card_details' => [
+                'card_number' => $member->access_code,
+                'status' => $member->access_code ? 'Linked' : 'Not linked',
+            ],
+            'renewal_date' => $member->expiry_date?->toDateString(),
+            'days_before_expiry' => $daysRemaining,
+            'latest_payment' => $payments->first(),
+            'recent_payments' => $payments,
+        ];
     }
 
     public function changePassword(Request $request): JsonResponse
