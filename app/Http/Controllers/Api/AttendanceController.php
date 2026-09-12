@@ -14,10 +14,26 @@ class AttendanceController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $period = $request->string('period', 'today')->toString();
+        $data = $request->validate([
+            'period' => ['nullable', Rule::in(['today', 'week', 'month', 'custom'])],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ]);
+
+        $period = $data['period'] ?? 'today';
         $query = Attendance::query()->latest('check_in_at');
 
-        if ($period === 'week') {
+        if ($period === 'custom') {
+            if (empty($data['from']) || empty($data['to'])) {
+                return response()->json([
+                    'message' => 'From and To dates are required for custom period.',
+                ], 422);
+            }
+
+            $fromDate = Carbon::parse($data['from'])->startOfDay();
+            $toDate = Carbon::parse($data['to'])->endOfDay();
+            $query->whereBetween('check_in_at', [$fromDate, $toDate]);
+        } elseif ($period === 'week') {
             $query->whereBetween('check_in_at', [now()->startOfWeek(), now()->endOfWeek()]);
         } elseif ($period === 'month') {
             $query->whereBetween('check_in_at', [now()->startOfMonth(), now()->endOfMonth()]);
@@ -77,7 +93,10 @@ class AttendanceController extends Controller
         ]);
 
         $member = Member::query()->with('membershipPlan')->findOrFail($data['member_id']);
-        $checkInAt = Carbon::parse($data['check_in_date'].' '.$data['check_in_time']);
+        $checkInAt = Carbon::parse(
+            $data['check_in_date'].' '.$data['check_in_time'],
+            config('app.timezone', 'UTC')
+        )->setTimezone(config('app.timezone', 'UTC'));
 
         $attendance = Attendance::create([
             'member_id' => $member->id,

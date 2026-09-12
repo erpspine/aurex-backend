@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\GymClass;
 use App\Models\Member;
+use App\Models\MembershipExpiryReminder;
 use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,6 +46,10 @@ class ReportController extends Controller
             ->whereBetween('class_date', [$startDate->toDateString(), $endDate->toDateString()])
             ->get();
 
+        $reminders = MembershipExpiryReminder::query()
+            ->whereBetween('created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->get();
+
         return response()->json([
             'period' => [
                 'key' => $period,
@@ -68,6 +73,61 @@ class ReportController extends Controller
             'member_status' => $this->groupCounts(Member::query()->get(), 'membership_status'),
             'top_services' => $this->groupTotals($paidPayments, 'item_name', 'amount')->take(6)->values(),
             'recent_payments' => $payments->take(8)->values(),
+            'membership_reminders' => [
+                'total' => $reminders->count(),
+                'sent' => $reminders->where('status', 'sent')->count(),
+                'failed' => $reminders->where('status', 'failed')->count(),
+                'five_days' => $reminders->where('days_before_expiry', 5)->count(),
+                'one_day' => $reminders->where('days_before_expiry', 1)->count(),
+            ],
+        ]);
+    }
+
+    public function membershipReminders(Request $request): JsonResponse
+    {
+        $period = $request->string('period', 'month')->toString();
+
+        if (! in_array($period, ['week', 'month', 'year'], true)) {
+            $period = 'month';
+        }
+
+        [$startDate, $endDate] = $this->dateRange($period);
+
+        $status = $request->string('status')->toString();
+        $type = $request->string('type')->toString();
+
+        $query = MembershipExpiryReminder::query()
+            ->with('member:id,full_name,phone,email,membership_status')
+            ->whereBetween('created_at', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()]);
+
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+
+        if ($type !== '') {
+            $query->where('reminder_type', $type);
+        }
+
+        $reminders = $query
+            ->latest()
+            ->limit(300)
+            ->get();
+
+        return response()->json([
+            'period' => [
+                'key' => $period,
+                'start_date' => $startDate->toDateString(),
+                'end_date' => $endDate->toDateString(),
+            ],
+            'stats' => [
+                'total' => $reminders->count(),
+                'sent' => $reminders->where('status', 'sent')->count(),
+                'failed' => $reminders->where('status', 'failed')->count(),
+                'queued' => $reminders->where('status', 'queued')->count(),
+                'five_days' => $reminders->where('days_before_expiry', 5)->count(),
+                'one_day' => $reminders->where('days_before_expiry', 1)->count(),
+            ],
+            'reminders' => $reminders,
         ]);
     }
 

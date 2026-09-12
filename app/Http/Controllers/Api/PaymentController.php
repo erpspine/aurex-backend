@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\MembershipPaymentMail;
 use App\Models\Member;
+use App\Models\MemberServiceUsage;
 use App\Models\MembershipPlan;
 use App\Models\Payment;
 use App\Services\MembershipExpiryService;
@@ -102,6 +103,8 @@ class PaymentController extends Controller
                         : ($member->start_date?->toDateString() ?? Carbon::parse($validated['payment_date'])->toDateString()),
                 ]);
 
+                    $this->resetServiceUsagesForPlan($member, $plan);
+
                 if ($member->email) {
                     try {
                         Mail::to($member->email)->send(new MembershipPaymentMail(
@@ -143,5 +146,52 @@ class PaymentController extends Controller
         } while (Payment::query()->where('reference_number', $reference)->exists());
 
         return $reference;
+    }
+
+    private function resetServiceUsagesForPlan(Member $member, MembershipPlan $plan): void
+    {
+        $member->serviceUsages()->delete();
+
+        $benefits = is_array($plan->benefits) ? $plan->benefits : [];
+
+        collect($benefits)
+            ->map(fn (mixed $benefit): ?array => $this->parseServiceQuota((string) $benefit))
+            ->filter()
+            ->each(function (array $quota) use ($member): void {
+                MemberServiceUsage::create([
+                    'member_id' => $member->id,
+                    'service_name' => $quota['service_name'],
+                    'allowed_sessions' => $quota['allowed_sessions'],
+                    'used_sessions' => 0,
+                ]);
+            });
+    }
+
+    /**
+     * @return array{service_name: string, allowed_sessions: int}|null
+     */
+    private function parseServiceQuota(string $benefit): ?array
+    {
+        $cleaned = trim($benefit);
+
+        if ($cleaned === '') {
+            return null;
+        }
+
+        if (! preg_match('/^(.*?)(?:\s*[:\-]\s*|\s+)(\d+)\s*(?:session|sessions?)$/i', $cleaned, $matches)) {
+            return null;
+        }
+
+        $serviceName = trim((string) ($matches[1] ?? ''));
+        $allowedSessions = (int) ($matches[2] ?? 0);
+
+        if ($serviceName === '' || $allowedSessions <= 0) {
+            return null;
+        }
+
+        return [
+            'service_name' => ucwords(strtolower($serviceName)),
+            'allowed_sessions' => $allowedSessions,
+        ];
     }
 }
