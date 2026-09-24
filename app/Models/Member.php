@@ -51,6 +51,16 @@ class Member extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function serviceUsages(): HasMany
+    {
+        return $this->hasMany(MemberServiceUsage::class);
+    }
+
+    public function expiryReminders(): HasMany
+    {
+        return $this->hasMany(MembershipExpiryReminder::class);
+    }
+
     protected function casts(): array
     {
         return [

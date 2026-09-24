@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Mail\MemberCredentialsMail;
 use App\Models\Member;
+use App\Models\MembershipExpiryReminder;
 use App\Models\TurnstileCommand;
 use App\Models\User;
+use App\Services\BulkSmsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Carbon;
+use RuntimeException;
 
 class MemberController extends Controller
 {
@@ -138,6 +141,92 @@ class MemberController extends Controller
         return response()->json([
             'message' => 'Member and mobile app login account deleted successfully.',
         ]);
+    }
+
+    public function sendExpiryReminder(Member $member, BulkSmsService $bulkSmsService): JsonResponse
+    {
+        $member->loadMissing('membershipPlan:id,price_amount,currency');
+
+        if (! $member->expiry_date) {
+            return response()->json([
+                'message' => 'Member expiry date is not set.',
+            ], 422);
+        }
+
+        $phone = $this->normalizePhone((string) $member->phone);
+
+        if ($phone === '') {
+            return response()->json([
+                'message' => 'Member phone number is not valid.',
+            ], 422);
+        }
+
+        $amount = $this->resolveReminderAmount($member);
+        $currency = $member->membershipPlan?->currency ?: 'TZS';
+        $message = $this->buildExpiryReminderMessage(
+            memberName: (string) $member->full_name,
+            expiryDate: Carbon::parse($member->expiry_date),
+            amount: $amount,
+            currency: $currency,
+        );
+
+        $expiryDate = Carbon::parse($member->expiry_date)->toDateString();
+
+        $log = MembershipExpiryReminder::query()->firstOrNew([
+            'member_id' => $member->id,
+            'reminder_type' => 'manual_send',
+            'expiry_date' => $expiryDate,
+        ]);
+
+        $log->fill([
+            'phone' => $phone,
+            'days_before_expiry' => max(0, now()->startOfDay()->diffInDays(Carbon::parse($member->expiry_date)->startOfDay(), false)),
+            'membership_amount' => $amount,
+            'status' => 'pending',
+            'message' => $message,
+            'provider_message_id' => null,
+            'provider_send_reference' => null,
+            'provider_status_name' => null,
+            'provider_response' => null,
+            'error_message' => null,
+            'sent_at' => null,
+        ]);
+        $log->save();
+
+        try {
+            $response = $bulkSmsService->sendTextSingle(
+                to: $phone,
+                text: $message,
+                senderId: (string) config('services.bulk_sms.sender_id', 'AUREX'),
+            );
+
+            $providerMessage = $response['messages'][0] ?? [];
+            $providerStatus = $providerMessage['status']['name'] ?? null;
+
+            $log->update([
+                'status' => 'sent',
+                'provider_message_id' => isset($providerMessage['messageId']) ? (string) $providerMessage['messageId'] : null,
+                'provider_send_reference' => isset($providerMessage['sendReference']) ? (string) $providerMessage['sendReference'] : null,
+                'provider_status_name' => is_string($providerStatus) ? $providerStatus : null,
+                'provider_response' => $response,
+                'sent_at' => now(),
+            ]);
+
+            return response()->json([
+                'message' => 'Expiry reminder SMS sent successfully.',
+                'reminder' => $log->fresh(),
+            ]);
+        } catch (RuntimeException $exception) {
+            $log->update([
+                'status' => 'failed',
+                'error_message' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'reminder' => $log->fresh(),
+            ], 502);
+        }
     }
 
     /**
@@ -340,5 +429,72 @@ class MemberController extends Controller
         $cardNumber = trim((string) $decoded['card_number']);
 
         return $cardNumber !== '' ? $cardNumber : null;
+    }
+
+    private function normalizePhone(string $phone): string
+    {
+        $phone = preg_replace('/\s+/', '', trim($phone)) ?? '';
+
+        if ($phone === '') {
+            return '';
+        }
+
+        if (str_starts_with($phone, '+')) {
+            $phone = substr($phone, 1);
+        }
+
+        if (str_starts_with($phone, '0') && strlen($phone) === 10) {
+            return '255'.substr($phone, 1);
+        }
+
+        return $phone;
+    }
+
+    private function buildExpiryReminderMessage(string $memberName, Carbon $expiryDate, int $amount, string $currency): string
+    {
+        $formattedAmount = number_format($amount).' '.$currency;
+
+        $expiryText = $expiryDate->format('d-M-Y');
+        $reference = trim($memberName) !== '' ? $memberName : 'Member';
+
+        return "Dear Aurex Member, your membership expires on {$expiryText}.\n\n"
+            ."To renew and continue enjoying uninterrupted access to Aurex Performance Arena, please make payment via:\n\n"
+            ."Lipa No.: 449385543\n"
+            ."Amount: {$formattedAmount}\n"
+            ."Reference: {$reference}\n\n"
+            ."After payment, kindly send your payment confirmation via WhatsApp to 0704 998 620.\n\n"
+            ."Thank you for being part of Aurex Performance Arena.\n"
+            ."Strength • Discipline • Performance";
+    }
+
+    private function resolveReminderAmount(Member $member): int
+    {
+        $normalizedPlanAmount = $member->membershipPlan?->price_amount !== null
+            ? (int) $member->membershipPlan->price_amount
+            : null;
+
+        if ($normalizedPlanAmount !== null && $normalizedPlanAmount > 0) {
+            return $normalizedPlanAmount;
+        }
+
+        $latestMembershipPaymentAmount = $member->payments()
+            ->where('payment_status', 'Paid')
+            ->whereIn('payment_for', ['Membership', 'Membership Renewal', 'Membership Plan'])
+            ->whereNotNull('amount')
+            ->orderByDesc('payment_date')
+            ->orderByDesc('created_at')
+            ->value('amount');
+
+        if ($latestMembershipPaymentAmount !== null && (int) $latestMembershipPaymentAmount > 0) {
+            return (int) $latestMembershipPaymentAmount;
+        }
+
+        $normalizedMemberPaid = $member->amount_paid !== null ? (int) $member->amount_paid : null;
+
+        if ($normalizedMemberPaid !== null && $normalizedMemberPaid > 0) {
+            return $normalizedMemberPaid;
+        }
+
+        return max((int) ($normalizedPlanAmount ?? 0), 0);
     }
 }

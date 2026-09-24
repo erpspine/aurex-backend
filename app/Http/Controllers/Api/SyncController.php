@@ -65,7 +65,8 @@ class SyncController extends Controller
         }
 
         $member = Member::query()->with('membershipPlan:id,name')->findOrFail($data['member_id']);
-        $eventTime = Carbon::parse($data['occurred_at']);
+        $eventTime = Carbon::parse($data['occurred_at'])
+            ->setTimezone(config('app.timezone', 'UTC'));
         $direction = $data['direction'] ?? 'In';
 
         [$event, $attendance] = DB::transaction(function () use (

@@ -39,4 +39,13 @@ return [
         'default_agent_id' => env('TURNSTILE_AGENT_ID'),
     ],
 
+    'bulk_sms' => [
+        'base_url' => env('BULK_SMS_BASE_URL', 'https://messaging-service.co.tz'),
+        'username' => env('BULK_SMS_USERNAME'),
+        'password' => env('BULK_SMS_PASSWORD'),
+        'sender_id' => env('BULK_SMS_SENDER_ID', 'AUREX'),
+        'test_mode' => env('BULK_SMS_TEST_MODE', true),
+        'timeout' => (int) env('BULK_SMS_TIMEOUT', 15),
+    ],
+
 ];
