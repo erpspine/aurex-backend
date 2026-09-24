@@ -47,6 +47,7 @@ class EquipmentController extends Controller
 
     public function destroy(Equipment $equipment): JsonResponse
     {
+        $this->deleteStoredFile($equipment->image_url);
         $this->deleteStoredFile($equipment->operation_video_url);
 
         $equipment->delete();
@@ -86,6 +87,7 @@ class EquipmentController extends Controller
             'maintenance_priority' => ['required', Rule::in(['Low', 'Medium', 'High', 'Urgent'])],
             'description' => ['nullable', 'string'],
             'safety_instructions' => ['nullable', 'string'],
+            'image_file' => ['nullable', 'image', 'max:5120'],
             'operation_video_file' => ['nullable', 'file', 'mimes:mp4,mov,avi,webm,mkv', 'max:51200'],
             'show_in_mobile_app' => ['required', 'boolean'],
             'access_type' => ['required', Rule::in(['Free', 'Premium', 'Members Only'])],
@@ -100,7 +102,14 @@ class EquipmentController extends Controller
     {
         $data = $request->validate($this->rules($equipment));
 
-        unset($data['operation_video_file']);
+        unset($data['image_file'], $data['operation_video_file']);
+
+        if ($request->hasFile('image_file')) {
+            $data['image_url'] = Storage::disk('public')->url(
+                $request->file('image_file')->store('equipment/images', 'public')
+            );
+            $this->deleteStoredFile($equipment?->image_url);
+        }
 
         if ($request->hasFile('operation_video_file')) {
             $this->deleteStoredFile($equipment?->operation_video_url);

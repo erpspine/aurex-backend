@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Model;
     'maintenance_priority',
     'description',
     'safety_instructions',
+    'image_url',
     'operation_video_url',
     'show_in_mobile_app',
     'access_type',
