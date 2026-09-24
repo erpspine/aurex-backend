@@ -26,6 +26,13 @@ class AuthenticateApiToken
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
+        if (($token->token_type ?? 'dashboard') !== 'service' && ! $token->user->email_verified_at) {
+            return response()->json([
+                'message' => 'Verify your email before logging in.',
+                'verification_required' => true,
+            ], 403);
+        }
+
         if ($token->revoked_at) {
             return response()->json(['message' => 'Token revoked.'], 401);
         }
@@ -95,14 +102,13 @@ class AuthenticateApiToken
             'api/profile/photo',
             'api/logout',
             'api/change-password',
-            'api/workouts',
         ];
 
         if (in_array($path, $allowedExact, true)) {
             return true;
         }
 
-        if ($method === 'GET' && preg_match('#^api/workouts/[^/]+$#', $path)) {
+        if ($method === 'GET' && ($path === 'api/workouts' || preg_match('#^api/workouts/[^/]+$#', $path))) {
             return true;
         }
 

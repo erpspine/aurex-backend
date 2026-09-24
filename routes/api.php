@@ -24,7 +24,13 @@ use App\Http\Controllers\Api\WorkoutController;
 use App\Http\Controllers\Api\WorkoutLevelController;
 use Illuminate\Support\Facades\Route;
 
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1,login');
+Route::post('/password/forgot', [\App\Http\Controllers\Api\PasswordResetController::class, 'send'])->middleware('throttle:5,1,password-send');
+Route::post('/password/verify', [\App\Http\Controllers\Api\PasswordResetController::class, 'verify'])->middleware('throttle:10,1,password-verify');
+Route::post('/password/reset', [\App\Http\Controllers\Api\PasswordResetController::class, 'reset'])->middleware('throttle:10,1,password-reset');
+Route::post('/register', [\App\Http\Controllers\Api\RegistrationController::class, 'register'])->middleware('throttle:5,1,register');
+Route::post('/email/verify', [\App\Http\Controllers\Api\RegistrationController::class, 'verify'])->middleware('throttle:10,1,verify');
+Route::post('/email/resend', [\App\Http\Controllers\Api\RegistrationController::class, 'resend'])->middleware('throttle:5,1,resend');
 
 Route::middleware('api.token')->group(function () {
     Route::get('/api-tokens', [ApiTokenController::class, 'index']);

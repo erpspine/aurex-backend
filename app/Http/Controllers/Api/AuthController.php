@@ -28,7 +28,7 @@ class AuthController extends Controller
 
         $user = User::query()
             ->with('member.membershipPlan:id,name,price_amount,currency,billing_cycle,duration_days')
-            ->where('email', $validated['email'])
+            ->whereRaw('LOWER(email) = ?', [strtolower(trim($validated['email']))])
             ->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
@@ -41,6 +41,31 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => ['This account is not active.'],
             ]);
+        }
+
+        if (! $user->email_verified_at) {
+            try {
+                $retryAfter = app(\App\Services\EmailVerificationService::class)->send($user);
+            } catch (\Symfony\Component\Mailer\Exception\TransportExceptionInterface $error) {
+                report($error);
+                return response()->json([
+                    'message' => 'Verify your email before logging in. The email could not be sent; please resend the code.',
+                    'verification_required' => true,
+                    'retry_after' => 0,
+                ], 503);
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $error) {
+                return response()->json([
+                    'message' => $error->getMessage(),
+                    'verification_required' => true,
+                    'retry_after' => 60,
+                ], $error->getStatusCode());
+            }
+
+            return response()->json([
+                'message' => 'Verify your email before logging in. Check your inbox for the code.',
+                'verification_required' => true,
+                'retry_after' => $retryAfter,
+            ], 403);
         }
 
         $plainToken = Str::random(80);

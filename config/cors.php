@@ -27,6 +27,8 @@ return [
         'http://127.0.0.1:3000',
         'http://127.0.0.1:5174',
         'http://127.0.0.1:8000',
+        'http://127.0.0.1:58125',
+        'http://localhost:58125',
         'https://app.aurex-performance.com',
         'https://api.aurex-performance.com',
         'null', // for file:// protocol

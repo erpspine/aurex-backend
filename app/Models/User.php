@@ -30,6 +30,15 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasUuids, Notifiable;
 
+    protected static function booted(): void
+    {
+        static::updating(function (User $user): void {
+            if ($user->isDirty('email') && strcasecmp($user->email, $user->getOriginal('email')) !== 0) {
+                $user->email_verified_at = null;
+            }
+        });
+    }
+
     public function member(): HasOne
     {
         return $this->hasOne(Member::class);

@@ -140,6 +140,7 @@ class PaymentExpiryTest extends TestCase
             'status' => 'Active',
             'password' => 'test-password',
         ]);
+        $user->forceFill(['email_verified_at' => now()])->save();
         $plainToken = Str::random(80);
         ApiToken::create([
             'user_id' => $user->id,
