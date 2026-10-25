@@ -11,7 +11,13 @@ class EmailVerificationMail extends Mailable
 {
     use Queueable;
 
-    public function __construct(public string $name, public string $code) {}
+    public function __construct(public string $name, public string $code, public string $recipientEmail = '')
+    {
+        $this->verificationUrl = rtrim(config('app.frontend_url'), '/').'/?verify=1&email='.urlencode($this->recipientEmail);
+    }
+
+    public string $verificationUrl;
+
 
     public function envelope(): Envelope
     {

@@ -47,7 +47,7 @@ class EmailVerificationService
             ]);
 
             // A delivery error rolls back the new code, leaving any previous code usable.
-            Mail::to($user->email)->send(new EmailVerificationMail($user->name, $code));
+            Mail::to($user->email)->send(new EmailVerificationMail($user->name, $code, $user->email));
             RateLimiter::hit($key, 3600);
 
             return 60;
