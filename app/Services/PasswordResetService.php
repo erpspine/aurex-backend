@@ -11,9 +11,14 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Throwable;
 
 class PasswordResetService
 {
+    public function __construct(private WhatsAppService $whatsApp)
+    {
+    }
+
     public function send(string $email): void
     {
         DB::transaction(function () use ($email): void {
@@ -44,6 +49,14 @@ class PasswordResetService
             ]);
             // If delivery fails, retain the previous code/grant and allow another attempt.
             Mail::to($user->email)->send(new PasswordResetCodeMail($user->name, $code));
+            // WhatsApp is a secondary channel: email already carries the code, so a failure here is only logged.
+            if ($user->phone) {
+                try {
+                    $this->whatsApp->sendVerificationCode($user->phone, $code);
+                } catch (Throwable $error) {
+                    report($error);
+                }
+            }
             RateLimiter::hit($key, 3600);
         });
     }

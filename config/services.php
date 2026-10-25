@@ -48,4 +48,13 @@ return [
         'timeout' => (int) env('BULK_SMS_TIMEOUT', 15),
     ],
 
+    'whatsapp' => [
+        'base_url' => env('WHATSAPP_API_URL', 'https://graph.facebook.com/v22.0'),
+        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'verification_template' => env('WHATSAPP_VERIFICATION_TEMPLATE', 'verification_code'),
+        'language' => env('WHATSAPP_TEMPLATE_LANGUAGE', 'en'),
+        'timeout' => (int) env('WHATSAPP_TIMEOUT', 15),
+    ],
+
 ];
