@@ -126,7 +126,7 @@ class AuthenticateApiToken
         }
 
         // Read-only catalogue the member mobile app browses.
-        if ($method === 'GET' && preg_match('#^api/(workouts|exercises|equipment|workout-levels|app-banners|diet-plans)(/[^/]+)?$#', $path)) {
+        if ($method === 'GET' && preg_match('#^api/(workouts|exercises|equipment|body-parts|workout-levels|app-banners|diet-plans)(/[^/]+)?$#', $path)) {
             return true;
         }
 

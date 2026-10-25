@@ -11,15 +11,44 @@ use Illuminate\Validation\Rule;
 
 class EquipmentController extends Controller
 {
-    public function index(): JsonResponse
+    /**
+     * Fields the member app may see; purchase, serial and service details
+     * stay internal.
+     */
+    private const MEMBER_FIELDS = [
+        'id', 'name', 'category', 'primary_muscle_group', 'secondary_muscle_group',
+        'supported_level', 'linked_exercises', 'description', 'safety_instructions',
+        'image_url', 'operation_video_url', 'access_type', 'status',
+        'show_in_mobile_app', 'publish_status', 'updated_at',
+    ];
+
+    public function index(Request $request): JsonResponse
     {
+        if ($request->user()->isMember()) {
+            return response()->json([
+                'equipment' => Equipment::query()
+                    ->where('publish_status', 'Published')
+                    ->where('show_in_mobile_app', true)
+                    ->orderBy('name')
+                    ->get(self::MEMBER_FIELDS),
+            ]);
+        }
+
         return response()->json([
             'equipment' => Equipment::query()->latest()->get(),
         ]);
     }
 
-    public function show(Equipment $equipment): JsonResponse
+    public function show(Request $request, Equipment $equipment): JsonResponse
     {
+        if ($request->user()->isMember()) {
+            abort_unless($equipment->publish_status === 'Published' && $equipment->show_in_mobile_app, 404);
+
+            return response()->json([
+                'equipment' => $equipment->only(self::MEMBER_FIELDS),
+            ]);
+        }
+
         return response()->json([
             'equipment' => $equipment,
         ]);

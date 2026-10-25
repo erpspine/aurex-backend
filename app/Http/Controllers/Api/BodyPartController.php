@@ -11,18 +11,45 @@ use Illuminate\Validation\Rule;
 
 class BodyPartController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $query = BodyPart::query()->orderBy('name');
+
+        // Members only see what the mobile app publishes, counting only the
+        // exercises they can open.
+        if ($request->user()->isMember()) {
+            $query->where('status', 'Active')
+                ->where('publish_status', 'Published')
+                ->where('show_in_mobile_app', true)
+                ->withCount(['exercises' => fn ($exercises) => $exercises
+                    ->where('publish_status', 'Published')
+                    ->where('show_in_mobile_app', true)]);
+        } else {
+            $query->withCount('exercises');
+        }
+
         return response()->json([
-            'body_parts' => BodyPart::query()
-                ->withCount('exercises')
-                ->orderBy('name')
-                ->get(),
+            'body_parts' => $query->get(),
         ]);
     }
 
-    public function show(BodyPart $bodyPart): JsonResponse
+    public function show(Request $request, BodyPart $bodyPart): JsonResponse
     {
+        if ($request->user()->isMember()) {
+            abort_unless(
+                $bodyPart->status === 'Active'
+                    && $bodyPart->publish_status === 'Published'
+                    && $bodyPart->show_in_mobile_app,
+                404,
+            );
+
+            return response()->json([
+                'body_part' => $bodyPart->loadCount(['exercises' => fn ($exercises) => $exercises
+                    ->where('publish_status', 'Published')
+                    ->where('show_in_mobile_app', true)]),
+            ]);
+        }
+
         return response()->json([
             'body_part' => $bodyPart->loadCount('exercises'),
         ]);

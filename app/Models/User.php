@@ -39,6 +39,15 @@ class User extends Authenticatable
         });
     }
 
+    /**
+     * Gym members using the mobile app (as opposed to staff accounts).
+     */
+    public function isMember(): bool
+    {
+        return strtolower(trim((string) $this->role)) === 'member'
+            || strtolower(trim((string) $this->user_type)) === 'member';
+    }
+
     public function member(): HasOne
     {
         return $this->hasOne(Member::class);
