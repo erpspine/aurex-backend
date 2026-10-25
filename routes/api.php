@@ -52,6 +52,17 @@ Route::middleware('api.token')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/sms/send', [SmsController::class, 'send']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::prefix('activity')->controller(\App\Http\Controllers\Api\MemberActivityController::class)->group(function () {
+        Route::get('/workouts', 'workouts');
+        Route::post('/workouts', 'storeWorkout');
+        Route::get('/food', 'food');
+        Route::post('/food', 'storeFood');
+        Route::delete('/food/{foodEntry}', 'destroyFood');
+        Route::get('/water', 'water');
+        Route::put('/water/{date}', 'updateWater');
+        Route::get('/diet-preferences', 'dietPreferences');
+        Route::put('/diet-preferences', 'updateDietPreferences');
+    });
     Route::get('/dashboard', [DashboardController::class, 'show']);
     Route::get('/settings', [SettingController::class, 'show']);
     Route::put('/settings', [SettingController::class, 'update']);

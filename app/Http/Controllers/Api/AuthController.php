@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ApiToken;
 use App\Models\Member;
 use App\Models\User;
+use App\Support\AuthCookie;
 use Illuminate\Support\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,20 +70,34 @@ class AuthController extends Controller
         }
 
         $plainToken = Str::random(80);
+        $useCookie = AuthCookie::requested($request);
 
         ApiToken::create([
             'user_id' => $user->id,
-            'name' => 'dashboard',
+            'name' => $useCookie ? 'web-app' : 'dashboard',
             'token_type' => 'dashboard',
             'token_hash' => hash('sha256', $plainToken),
+            // Cookie sessions expire with the cookie.
+            'expires_at' => $useCookie ? now()->addMinutes(AuthCookie::lifetimeMinutes()) : null,
         ]);
 
-        return response()->json([
+        $payload = [
             'message' => 'Login successful.',
-            'token' => $plainToken,
             'user' => $user,
             'member' => $this->memberProfilePayload($user->member),
-        ]);
+        ];
+
+        if (! $useCookie) {
+            return response()->json(['token' => $plainToken, ...$payload]);
+        }
+
+        if (AuthCookie::isCrossSite($request)) {
+            $payload['token'] = $plainToken;
+        }
+
+        return response()
+            ->json($payload)
+            ->withCookie(AuthCookie::make($request, $plainToken));
     }
 
     public function me(Request $request): JsonResponse
@@ -167,7 +182,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $plainToken = $request->bearerToken();
+        $plainToken = $request->bearerToken() ?: $request->cookie(AuthCookie::name());
 
         if ($plainToken) {
             ApiToken::query()
@@ -175,9 +190,9 @@ class AuthController extends Controller
                 ->delete();
         }
 
-        return response()->json([
-            'message' => 'Logged out successfully.',
-        ]);
+        return response()
+            ->json(['message' => 'Logged out successfully.'])
+            ->withCookie(AuthCookie::forget($request));
     }
 
     private function deleteStoredFile(?string $url): void

@@ -42,6 +42,7 @@ return [
 
     'max_age' => 86400,
 
-    'supports_credentials' => false,
+    // The Flutter web app authenticates with an HttpOnly cookie.
+    'supports_credentials' => true,
 
 ];

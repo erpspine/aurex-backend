@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\ApiToken;
+use App\Support\AuthCookie;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -12,6 +13,17 @@ class AuthenticateApiToken
     public function handle(Request $request, Closure $next): Response
     {
         $plainToken = $request->bearerToken();
+
+        if (! $plainToken && $request->cookie(AuthCookie::name())) {
+            // Browsers attach cookies automatically, so cookie auth also needs a
+            // header that cross-site forms and links cannot add (CSRF guard);
+            // other origins are stopped by the CORS allow-list.
+            if ($request->header('X-Requested-With') !== 'XMLHttpRequest') {
+                return response()->json(['message' => 'Missing X-Requested-With header.'], 403);
+            }
+
+            $plainToken = (string) $request->cookie(AuthCookie::name());
+        }
 
         if (! $plainToken) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
@@ -108,7 +120,13 @@ class AuthenticateApiToken
             return true;
         }
 
-        if ($method === 'GET' && ($path === 'api/workouts' || preg_match('#^api/workouts/[^/]+$#', $path))) {
+        // The member's own activity log; every query is scoped to the user.
+        if (str_starts_with($path, 'api/activity/')) {
+            return true;
+        }
+
+        // Read-only catalogue the member mobile app browses.
+        if ($method === 'GET' && preg_match('#^api/(workouts|exercises|equipment|workout-levels|app-banners|diet-plans)(/[^/]+)?$#', $path)) {
             return true;
         }
 
