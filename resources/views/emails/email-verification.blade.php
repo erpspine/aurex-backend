@@ -17,7 +17,7 @@
                             </div>
                             <div style="color:#C8A13A;font-size:12px;font-weight:700;letter-spacing:3px;margin-top:8px;">PERFORMANCE ARENA</div>
                             <h1 style="font-size:28px;line-height:1.2;margin:34px 0 10px;color:#ffffff;">Verify your email address</h1>
-                            <p style="margin:0;color:#b8b8b8;font-size:16px;line-height:1.6;">Hi {{ $name }}, enter the code below in the AUREX app to verify your email address before logging in.</p>
+                            <p style="margin:0;color:#b8b8b8;font-size:16px;line-height:1.6;">Hi {{ $name }}, click the button below, then enter the code to verify your email address before logging in.</p>
                         </td>
                     </tr>
                     <tr>
@@ -31,6 +31,8 @@
                                     </td>
                                 </tr>
                             </table>
+
+                            <p style="text-align:center;margin:26px 0 0;"><a href="{{ $verificationUrl }}" style="display:inline-block;background:#C8A13A;color:#050505;font-size:16px;font-weight:800;text-decoration:none;border-radius:12px;padding:15px 28px;">Verify email in AUREX</a></p>
 
                             <p style="color:#9c9c9c;font-size:14px;line-height:1.7;margin:24px 0 0;">Do not share this code with anyone. If you did not request this email, you can safely ignore it.</p>
                         </td>
