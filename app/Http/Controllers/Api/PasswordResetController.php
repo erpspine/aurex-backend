@@ -22,7 +22,7 @@ class PasswordResetController extends Controller
         }
 
         return response()->json([
-            'message' => 'If an active account uses this email, a reset code has been sent. Check your inbox and spam folder. You can request up to five codes per hour.',
+            'message' => 'If an active account uses this email, a reset code has been sent to that email address and, when a phone number is on file, to WhatsApp. Check your inbox, spam folder and WhatsApp. You can request up to five codes per hour.',
             'retry_after' => 60,
         ]);
     }

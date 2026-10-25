@@ -20,16 +20,22 @@ class RegistrationController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255'],
+            // Used for WhatsApp password-reset codes.
+            'phone' => ['required', 'string', 'regex:/^\+?[0-9\s\-()]{9,20}$/'],
             'password' => ['required', 'string', 'min:8', 'max:128', 'confirmed'],
+        ], [
+            'phone.regex' => 'Enter a valid phone number, e.g. 0712 345 678 or +255 712 345 678.',
         ]);
+        $phone = trim($validated['phone']);
         if (User::query()->whereRaw('LOWER(email) = ?', [$validated['email']])->exists()) {
             throw ValidationException::withMessages(['email' => ['This email is already registered. Log in to continue or verify your email.']]);
         }
 
-        $user = DB::transaction(function () use ($validated): User {
+        $user = DB::transaction(function () use ($validated, $phone): User {
             $user = User::create([
                 'name' => trim($validated['name']),
                 'email' => $validated['email'],
+                'phone' => $phone,
                 'password' => $validated['password'],
                 'user_type' => 'Member',
                 'role' => 'Member',
@@ -41,7 +47,7 @@ class RegistrationController extends Controller
                 'user_id' => $user->id,
                 'full_name' => $user->name,
                 'email' => $user->email,
-                'phone' => '',
+                'phone' => $phone,
                 'membership_status' => 'Pending',
                 'payment_status' => 'Pending',
                 'amount_paid' => 0,

@@ -50,12 +50,19 @@ class PasswordResetService
             // If delivery fails, retain the previous code/grant and allow another attempt.
             Mail::to($user->email)->send(new PasswordResetCodeMail($user->name, $code));
             // WhatsApp is a secondary channel: email already carries the code, so a failure here is only logged.
-            if ($user->phone) {
-                try {
-                    $this->whatsApp->sendVerificationCode($user->phone, $code);
-                } catch (Throwable $error) {
-                    report($error);
-                }
+            // It is sent once the code is committed and after the response is returned, so the user row is
+            // not kept locked and the request does not wait on Meta's API (no queue worker needed).
+            if ($user->phone && $this->whatsApp->isConfigured()) {
+                $phone = $user->phone;
+                DB::afterCommit(function () use ($phone, $code): void {
+                    dispatch(function () use ($phone, $code): void {
+                        try {
+                            app(WhatsAppService::class)->sendVerificationCode($phone, $code);
+                        } catch (Throwable $error) {
+                            report($error);
+                        }
+                    })->afterResponse();
+                });
             }
             RateLimiter::hit($key, 3600);
         });

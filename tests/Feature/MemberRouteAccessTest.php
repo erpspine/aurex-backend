@@ -14,7 +14,7 @@ class MemberRouteAccessTest extends TestCase
     {
         $this->postJson('/api/register', [
             'name' => 'App Member', 'email' => 'app-member@example.test',
-            'password' => 'Password123', 'password_confirmation' => 'Password123',
+            'phone' => '0784243530', 'password' => 'Password123', 'password_confirmation' => 'Password123',
         ])->assertCreated();
 
         User::where('email', 'app-member@example.test')->update(['email_verified_at' => now()]);

@@ -15,7 +15,7 @@ class MemberActivityTest extends TestCase
     {
         $this->postJson('/api/register', [
             'name' => 'Activity Member', 'email' => $email,
-            'password' => 'Password123', 'password_confirmation' => 'Password123',
+            'phone' => '0784243530', 'password' => 'Password123', 'password_confirmation' => 'Password123',
         ])->assertCreated();
 
         User::where('email', $email)->update(['email_verified_at' => now()]);

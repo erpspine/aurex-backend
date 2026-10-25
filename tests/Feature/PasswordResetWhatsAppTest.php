@@ -25,7 +25,7 @@ class PasswordResetWhatsAppTest extends TestCase
 
         $this->postJson('/api/register', [
             'name' => 'Reset Member', 'email' => 'reset@example.test',
-            'password' => 'Password123', 'password_confirmation' => 'Password123',
+            'phone' => '0784243530', 'password' => 'Password123', 'password_confirmation' => 'Password123',
         ])->assertCreated();
         User::where('email', 'reset@example.test')->update(['phone' => '+255 784 243 530', 'status' => 'Active']);
     }
@@ -47,6 +47,19 @@ class PasswordResetWhatsAppTest extends TestCase
                 && preg_match('/^\d{6}$/', $code) === 1
                 && $request['template']['components'][1]['parameters'][0]['text'] === $code;
         });
+    }
+
+    public function test_whatsapp_is_skipped_when_not_configured(): void
+    {
+        config(['services.whatsapp.access_token' => null]);
+        Http::fake();
+
+        $this->postJson('/api/password/forgot', ['email' => 'reset@example.test'])
+            ->assertOk()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'WhatsApp'));
+
+        Http::assertNothingSent();
+        Mail::assertSent(\App\Mail\PasswordResetCodeMail::class);
     }
 
     public function test_whatsapp_failure_does_not_block_the_email(): void

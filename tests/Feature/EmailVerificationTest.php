@@ -21,7 +21,7 @@ class EmailVerificationTest extends TestCase
     {
         return array_merge([
             'name' => 'New Member', 'email' => 'member@example.test',
-            'password' => 'Password123', 'password_confirmation' => 'Password123',
+            'phone' => '0784243530', 'password' => 'Password123', 'password_confirmation' => 'Password123',
         ], $overrides);
     }
 

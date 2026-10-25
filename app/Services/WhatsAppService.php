@@ -7,6 +7,12 @@ use RuntimeException;
 
 class WhatsAppService
 {
+    public function isConfigured(): bool
+    {
+        return (string) config('services.whatsapp.access_token') !== ''
+            && (string) config('services.whatsapp.phone_number_id') !== '';
+    }
+
     /**
      * Send an approved AUTHENTICATION template; the code fills both the body and the copy-code button.
      *
